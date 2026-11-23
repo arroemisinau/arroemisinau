@@ -2440,7 +2440,27 @@ function ARS_ENGINE(){
   };
 }
 
+// Memperbaiki cacat umum pada file soal HTML lama secara otomatis saat dibuka (file di server tidak diubah).
+// Semua perbaikan aman: bila pola tidak ditemukan, tidak ada yang berubah.
+function perbaikiSoalLama(c) {
+  c = String(c);
+  // (1) Sisipan CSS .ar{...} yang nyasar ke dalam teks pustaka jsPDF dan merusak seluruh pustaka -> PDF tidak bisa diunduh
+  c = c.replace(/(iframe \{ width: 100%; height: 100%; border: 0;\}[ \t]*)\.ar\{[^<]*?(<\/style>)/g, '$1$2');
+  // (2) Tombol "Cetak Soal" error "fmt0 is not defined" karena fmt0 ada di blok script lain
+  if (c.indexOf('window.__fmt0') < 0) {
+    const a = '  function fmt(s){ return fmt0(s)';
+    const b = "  function e(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}\n  function pbox(id,first){";
+    if (c.split(a).length === 2 && c.split(b).length === 2) {
+      c = c.replace(a, () => '  window.__fmt0 = fmt0;\n' + a);
+      c = c.replace(b, () => b.replace('  function pbox', "  function fmt0(s){return window.__fmt0?window.__fmt0(s):e(s);}\n  function pbox"));
+    }
+  }
+  // (3) PDF tanpa kompresi bisa berukuran puluhan MB
+  c = c.replace("new jsPDF({unit:'mm', format:'a4'})", "new jsPDF({unit:'mm', format:'a4', compress:true})");
+  return c;
+}
 function paketSrcdoc(c) {
+  c = perbaikiSoalLama(c);
   const tag = '<scr' + 'ipt>' + PAKET_BRIDGE_JS + '\n(' + ARS_ENGINE.toString() + ')();</scr' + 'ipt>';
   const i = String(c).toLowerCase().lastIndexOf('</body>');
   return i >= 0 ? c.slice(0, i) + tag + c.slice(i) : c + tag;
@@ -2520,7 +2540,7 @@ function viewPaketHtml(id) {
   const unduh = `<a class="btn btn-primary" href="${esc(c)}" download="${esc(p.namaFile || p.judul)}">⬇️ Unduh / Buka File</a>`;
   let frameHtml;
   if (tipe === 'pdf') frameHtml = `<iframe class="html-frame" src="${esc(c)}" title="${esc(p.judul)}"></iframe>`;
-  else if (tipe === 'html') frameHtml = `<iframe class="html-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals" srcdoc="${esc(paketSrcdoc(c))}"></iframe>`;
+  else if (tipe === 'html') frameHtml = `<iframe class="html-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-popups-to-escape-sandbox" srcdoc="${esc(paketSrcdoc(c))}"></iframe>`;
   else if (tipe === 'img') frameHtml = `<img class="qimg" style="max-height:80vh" src="${esc(c)}" alt="${esc(p.judul)}">`;
   else if (tipe === 'txt' || tipe === 'csv') frameHtml = `<pre class="whitespace-pre-wrap text-sm bg-slate-50 border border-slate-200 rounded-2xl p-4 overflow-auto" style="max-height:78vh">${esc(c)}</pre>`;
   else if (tipe === 'docx') { frameHtml = `<div id="docxView" class="prose-sd bg-white border border-slate-200 rounded-2xl p-5 overflow-auto" style="max-height:78vh">Memuat dokumen…</div>`; setTimeout(async () => { try { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js'); const r = await mammoth.convertToHtml({ arrayBuffer: dataUrlToBuf(c).buffer }); const el = document.getElementById('docxView'); if (el) el.innerHTML = htmlAman(r.value); } catch (e) { const el = document.getElementById('docxView'); if (el) el.innerHTML = 'Dokumen tidak dapat ditampilkan. Silakan unduh file.'; } }, 0); }
