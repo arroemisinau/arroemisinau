@@ -2297,15 +2297,15 @@ const PAKET_BRIDGE_JS = [
 "var hooked=false;",
 "function afterFin(){try{if(typeof id!=='undefined'&&id&&id.nil!=null){var d={nilai:+id.nil,nama:id.n?String(id.n):''},t=document.body.innerText||'',m=/(\\d+)\\s*dari\\s*(\\d+)\\s*poin/i.exec(t);if(m){d.benar=+m[1];d.total=+m[2];}send(d);}}catch(e){}}",
 "function hook(){if(hooked||typeof window.fin!=='function')return;var o=window.fin;window.fin=function(){var r=o.apply(this,arguments);setTimeout(afterFin,80);return r;};hooked=true;}",
-"function scan(){if(hooked)return;var t='';try{t=document.body.innerText||'';}catch(e){return;}",
-"if(!/(hasil|selesai|skor akhir|nilai akhir|final score|your score|nilai kamu|skor kamu|nilaimu|skormu|result|kamu mendapat|kamu menjawab|selamat)/i.test(t)){last='';return;}",
-"var m,d=null;",
-"if((m=/(?:skor|nilai|score)[^\\d\\n]{0,30}(\\d+(?:[.,]\\d+)?)\\s*(?:\\/|dari|of)\\s*(\\d+)/i.exec(t))){var a=n(m[1]),b=n(m[2]);d=(b===100)?{nilai:a}:{benar:a,total:b};}",
-"else if((m=/(\\d+)\\s*(?:\\/|dari)\\s*(\\d+)\\s*(?:soal|benar|pertanyaan|jawaban)/i.exec(t))){d={benar:n(m[1]),total:n(m[2])};}",
-"else{var be=/benar[^\\d\\n]{0,12}(\\d+)/i.exec(t),sa=/salah[^\\d\\n]{0,12}(\\d+)/i.exec(t),ko=/(?:kosong|tidak dijawab)[^\\d\\n]{0,12}(\\d+)/i.exec(t);",
-"if(be&&sa){var bb=n(be[1]),ss=n(sa[1]),kk=ko?n(ko[1]):0;d={benar:bb,salah:ss,kosong:kk,total:bb+ss+kk};}",
-"else if((m=/(?:skor|nilai|score)[^\\d\\n]{0,30}(\\d+(?:[.,]\\d+)?)/i.exec(t))){d={nilai:n(m[1])};}}",
-"if(d)send(d);}",
+"function visible(el){try{return !!(el&&el.getClientRects().length);}catch(e){return false;}}",
+"function layar(){var S=['#score-num','.score-num','#nilai-akhir','.nilai-akhir','[data-ars-nilai]'],i,el,m;for(i=0;i<S.length;i++){el=document.querySelector(S[i]);if(visible(el)&&(m=/\\d+(?:[.,]\\d+)?/.exec(el.textContent||'')))return n(m[0]);}return null;}",
+"function scan(){if(hooked)return;var v=layar();if(v!==null){send({nilai:v,sumber:'layar'});return;}",
+"var t='';try{t=document.body.innerText||'';}catch(e){return;}",
+"t=t.replace(/skala\\s*\\d+/ig,'').replace(/maks(?:imal|\\.)?\\s*\\d+/ig,'');",
+"var m=/(?:skor akhir|nilai akhir|final score|your score|nilai kamu|skor kamu|nilaimu|skormu)[^\\d\\n]{0,30}(\\d+(?:[.,]\\d+)?)(?:\\s*(?:\\/|dari|of)\\s*(\\d+))?/i.exec(t);",
+"if(!m){last='';return;}",
+"var a=n(m[1]),b=m[2]?n(m[2]):0,d=(b>0&&b!==100)?{benar:a,total:b}:{nilai:a};",
+"send(d);}",
 "function sched(){clearTimeout(tm);tm=setTimeout(scan,1200);}",
 "try{new MutationObserver(sched).observe(document.documentElement,{childList:true,subtree:true,characterData:true,attributes:true});}catch(e){}",
 "document.addEventListener('click',sched,true);",
@@ -2472,7 +2472,8 @@ async function catatSkorPaket(data) {
   } else if (isFinite(Number(data.poin)) && isFinite(Number(data.maks)) && Number(data.maks) > 0) {
     benar = Number(data.poin); total = Number(data.maks);
   }
-  if (isFinite(benar) && isFinite(total) && total > 0) nilai = Math.round(benar / total * 100);
+  // Nilai yang tampil di layar hasil soal adalah patokan utama; hitung dari benar/total hanya bila nilai tidak dikirim
+  if (isFinite(benar) && isFinite(total) && total > 0 && (detail.length || !isFinite(nilai))) nilai = Math.round(benar / total * 100);
   if (!isFinite(nilai)) return;
   nilai = Math.max(0, Math.min(100, Math.round(nilai)));
   benar = isFinite(benar) ? benar : 0; total = isFinite(total) ? total : 0;
